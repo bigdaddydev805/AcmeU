@@ -1,0 +1,450 @@
+openapi: 3.0.3
+info:
+  title: AcmeU Platform API
+  version: "1.0"
+  description: |
+    Public API for the AcmeU learning and credentialing platform.
+
+    All endpoints are tenant-scoped. Access tokens are RS256 JWTs issued by
+    `POST /auth/login` and verified against the JWKS document published at
+    `/.well-known/jwks.json`. Service integrations may authenticate with a
+    scoped API key supplied in the `X-API-Key` header.
+  contact:
+    name: AcmeU Platform Team
+    email: platform@acmeu.com
+servers:
+  - url: https://api.acmeu.com/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+  - name: Users
+  - name: Catalog
+  - name: Enrollment
+  - name: Assessment
+  - name: Billing
+  - name: Credentials
+  - name: Integrations
+  - name: Reporting
+  - name: Administration
+
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Exchange credentials for an access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+                otp: { type: string, description: Required when the account has MFA enabled }
+                rememberMe: { type: boolean, default: false }
+                tenant: { type: string, description: Workspace slug, when the email exists in more than one workspace }
+      responses:
+        "200":
+          description: Session established
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Create a learner account in an existing workspace
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName, tenantSlug]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 10 }
+                displayName: { type: string }
+                tenantSlug: { type: string }
+                inviteToken: { type: string }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate a refresh token
+      security: []
+      responses:
+        "200":
+          description: New session
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the presented refresh token
+      responses:
+        "204": { description: Session revoked }
+
+  /auth/password/forgot:
+    post:
+      tags: [Authentication]
+      summary: Request a password reset email
+      security: []
+      responses:
+        "202": { description: Accepted, whether or not the address is known }
+
+  /auth/password/reset:
+    post:
+      tags: [Authentication]
+      summary: Complete a password reset
+      security: []
+      responses:
+        "200": { description: Password updated }
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Current user profile and effective permissions
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+    patch:
+      tags: [Users]
+      summary: Update the current user's profile
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+
+  /users/me/preferences:
+    get:
+      tags: [Users]
+      summary: Read the preference document
+      responses:
+        "200": { description: Preference object }
+    put:
+      tags: [Users]
+      summary: Merge into the preference document
+      responses:
+        "200": { description: Merged preference object }
+
+  /courses:
+    get:
+      tags: [Catalog]
+      summary: Search the catalogue
+      parameters:
+        - { in: query, name: page, schema: { type: integer, default: 1 } }
+        - { in: query, name: pageSize, schema: { type: integer, default: 20, maximum: 100 } }
+        - { in: query, name: q, schema: { type: string } }
+        - { in: query, name: category, schema: { type: string } }
+        - { in: query, name: level, schema: { type: string } }
+        - { in: query, name: tag, schema: { type: string } }
+        - { in: query, name: minRating, schema: { type: number } }
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [relevance, title, rating, newest, price, duration, popularity]
+        - { in: query, name: direction, schema: { type: string, enum: [asc, desc] } }
+      responses:
+        "200":
+          description: Paginated catalogue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CoursePage" }
+    post:
+      tags: [Catalog]
+      summary: Create a course
+      responses:
+        "201": { description: Course created }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /courses/{courseId}:
+    get:
+      tags: [Catalog]
+      summary: Course detail with module and lesson outline
+      parameters: [{ $ref: "#/components/parameters/CourseId" }]
+      responses:
+        "200": { description: Course detail }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /courses/{courseId}/lessons/{lessonId}:
+    get:
+      tags: [Catalog]
+      summary: Rendered lesson content
+      parameters:
+        - { $ref: "#/components/parameters/CourseId" }
+        - { in: path, name: lessonId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Lesson }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /enrollments:
+    get:
+      tags: [Enrollment]
+      summary: Enrollments for the current user
+      responses:
+        "200": { description: Enrollment list }
+    post:
+      tags: [Enrollment]
+      summary: Enroll the current user in a course
+      responses:
+        "201": { description: Enrollment created }
+        "409": { description: Already enrolled, or the course is at capacity }
+
+  /courses/{courseId}/assignments:
+    get:
+      tags: [Assessment]
+      summary: Assignments for a course, with the caller's submission state
+      parameters: [{ $ref: "#/components/parameters/CourseId" }]
+      responses:
+        "200": { description: Assignment list }
+
+  /courses/{courseId}/submissions/{submissionId}:
+    get:
+      tags: [Assessment]
+      summary: Retrieve a submission
+      parameters:
+        - { $ref: "#/components/parameters/CourseId" }
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Submission detail }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /submissions/{submissionId}/grade:
+    post:
+      tags: [Assessment]
+      summary: Record a grade against a submission
+      parameters:
+        - { in: path, name: submissionId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Graded }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /billing/credits:
+    get:
+      tags: [Billing]
+      summary: Credit balance and ledger
+      responses:
+        "200": { description: Balance and ledger entries }
+
+  /billing/credits/transfer:
+    post:
+      tags: [Billing]
+      summary: Transfer credits to another member of the workspace
+      responses:
+        "200": { description: Updated sender balance }
+
+  /billing/coupons/redeem:
+    post:
+      tags: [Billing]
+      summary: Redeem a coupon code
+      responses:
+        "200": { description: Redemption result }
+        "409": { description: Redemption limit reached }
+
+  /credentials/verify/{serial}:
+    get:
+      tags: [Credentials]
+      summary: Public certificate verification
+      security: []
+      parameters:
+        - { in: path, name: serial, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Verification result }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /integrations/webhooks:
+    get:
+      tags: [Integrations]
+      summary: List webhook subscriptions
+      responses:
+        "200": { description: Webhook list }
+    post:
+      tags: [Integrations]
+      summary: Create a webhook subscription
+      responses:
+        "201": { description: Webhook created }
+
+  /integrations/roster/import:
+    post:
+      tags: [Integrations]
+      summary: Import a roster document
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                roster: { type: string, format: binary }
+                provider: { type: string }
+      responses:
+        "200": { description: Import summary }
+
+  /reports/{reportId}/run:
+    post:
+      tags: [Reporting]
+      summary: Execute a saved report
+      parameters:
+        - { in: path, name: reportId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { description: Result set }
+
+  /admin/users:
+    get:
+      tags: [Administration]
+      summary: List workspace members
+      responses:
+        "200": { description: Member list }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /admin/audit:
+    get:
+      tags: [Administration]
+      summary: Read the workspace audit trail
+      responses:
+        "200": { description: Audit entries }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    CourseId:
+      in: path
+      name: courseId
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: The request payload failed validation
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Authentication is required or the credential was rejected
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The caller lacks the required role or scope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No such resource
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: {}
+            requestId: { type: string }
+
+    Session:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string }
+            displayName: { type: string }
+            role: { type: string, enum: [learner, instructor, manager, admin, owner] }
+            tenantId: { type: string, format: uuid }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        email: { type: string }
+        displayName: { type: string }
+        title: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        avatarUrl: { type: string, nullable: true }
+        role: { type: string }
+        status: { type: string }
+        locale: { type: string }
+        timezone: { type: string }
+        credits: { type: integer }
+        mfaEnabled: { type: boolean }
+        preferences: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+
+    CourseSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        level: { type: string }
+        category: { type: string }
+        tags: { type: array, items: { type: string } }
+        visibility: { type: string, enum: [public, tenant, private] }
+        status: { type: string, enum: [draft, published, archived] }
+        priceCents: { type: integer }
+        seatLimit: { type: integer, nullable: true }
+        seatsTaken: { type: integer }
+        durationMins: { type: integer }
+        ratingAvg: { type: number }
+        ratingCount: { type: integer }
+
+    CoursePage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: "#/components/schemas/CourseSummary" } }
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }

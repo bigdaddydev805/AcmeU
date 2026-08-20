@@ -10,8 +10,8 @@ ENV VITE_GRAPHQL_URL=$VITE_GRAPHQL_URL
 
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
-COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
+COPY packages/shared/package.json packages/shared/package.json
 RUN npm ci --ignore-scripts
 
 COPY apps/web apps/web
@@ -19,36 +19,8 @@ RUN npm run build --workspace @acmeu/web
 
 FROM nginx:1.27-alpine AS runtime
 
-RUN rm /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-
-RUN printf '%s\n' \
-  'server {' \
-  '    listen 80;' \
-  '    server_name _;' \
-  '    root /usr/share/nginx/html;' \
-  '    index index.html;' \
-  '    server_tokens off;' \
-  '' \
-  '    gzip on;' \
-  '    gzip_types text/css application/javascript application/json image/svg+xml;' \
-  '    gzip_min_length 1024;' \
-  '' \
-  '    location /assets/ {' \
-  '        expires 1y;' \
-  '        add_header Cache-Control "public, immutable";' \
-  '        try_files $uri =404;' \
-  '    }' \
-  '' \
-  '    location = /healthz {' \
-  '        access_log off;' \
-  '        return 200 "ok\\n";' \
-  '    }' \
-  '' \
-  '    location / {' \
-  '        try_files $uri /index.html;' \
-  '    }' \
-  '}' > /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

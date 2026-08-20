@@ -2,13 +2,13 @@
 
 INSERT INTO tenants (id, slug, name, plan, seats_purchased, branding, settings) VALUES
   ('8f14e45f-ceea-4d4a-9f2a-1c3b6d7e0001', 'northwind', 'Northwind Trading Co.', 'enterprise', 500,
-   '{"primaryColor":"#4f46e5","logoUrl":"/uploads/brand/northwind.png","accent":"indigo"}'::jsonb,
+   '{"primaryColor":"#4f46e5","logoUrl":"/media/brand/northwind.svg","accent":"indigo"}'::jsonb,
    '{"allowSelfEnrollment":true,"certificateExpiryMonths":24,"defaultLocale":"en-US"}'::jsonb),
   ('8f14e45f-ceea-4d4a-9f2a-1c3b6d7e0002', 'helios', 'Helios Robotics', 'growth', 120,
-   '{"primaryColor":"#0891b2","logoUrl":"/uploads/brand/helios.png","accent":"cyan"}'::jsonb,
+   '{"primaryColor":"#0891b2","logoUrl":"/media/brand/helios.svg","accent":"cyan"}'::jsonb,
    '{"allowSelfEnrollment":false,"certificateExpiryMonths":12,"defaultLocale":"en-GB"}'::jsonb),
   ('8f14e45f-ceea-4d4a-9f2a-1c3b6d7e0003', 'acme-internal', 'Acme Corporation', 'internal', 5000,
-   '{"primaryColor":"#dc2626","logoUrl":"/uploads/brand/acme.png","accent":"red"}'::jsonb,
+   '{"primaryColor":"#dc2626","logoUrl":"/media/brand/acme.svg","accent":"red"}'::jsonb,
    '{"allowSelfEnrollment":true,"certificateExpiryMonths":36,"defaultLocale":"en-US"}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 

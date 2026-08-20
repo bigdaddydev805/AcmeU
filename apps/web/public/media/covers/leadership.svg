@@ -1,0 +1,15 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='800' height='450' viewBox='0 0 260 146' role='img' aria-label='Leading Teams'>
+  <defs>
+    <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+      <stop offset='0' stop-color='#db2777'/><stop offset='1' stop-color='#7c3aed'/>
+    </linearGradient>
+    <pattern id='d' width='10' height='10' patternUnits='userSpaceOnUse'>
+      <circle cx='1' cy='1' r='1' fill='#ffffff' opacity='.14'/>
+    </pattern>
+  </defs>
+  <rect width='260' height='146' fill='url(#g)'/>
+  <rect width='260' height='146' fill='url(#d)'/>
+  <g fill='none' stroke='#ffffff' stroke-opacity='.5' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'>
+    <path d='M130 46 a22 22 0 1 1 -0.1 0 z M78 150 c0 -30 24 -50 52 -50 s52 20 52 50 z'/>
+  </g>
+</svg>
